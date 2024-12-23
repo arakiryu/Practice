@@ -1,0 +1,450 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="dao.TodoDAO">
+    
+    <!-- Result Maps -->
+    <resultMap type="TodoVO" id="todoMap">
+        <result column="todo_id" property="todoId" />
+        <result column="member_id" property="memberId" />
+        <result column="title" property="title" />
+        <result column="detail" property="detail" />
+        <result column="start_date" property="startDate" />
+        <result column="end_date" property="endDate" />
+        <result column="is_recurring" property="isRecurring" />
+        <result column="repeat_interval" property="repeatInterval" />
+        <result column="created_at" property="createdAt" />
+        <result column="updated_at" property="updatedAt" />
+    </resultMap>
+    
+    <resultMap type="TodoCompletedVO" id="todoCompletedMap">
+        <result column="todo_id" property="todoId" />
+        <result column="member_id" property="memberId" />
+        <result column="title" property="title" />
+        <result column="detail" property="detail" />
+        <result column="start_date" property="startDate" />
+        <result column="end_date" property="endDate" />
+        <result column="completed_at" property="completedAt" />
+        <result column="is_recurring" property="isRecurring" />
+        <result column="repeat_interval" property="repeatInterval" />
+    </resultMap>
+
+    <resultMap type="TodoRecurringVO" id="todoRecurringMap">
+        <result column="recurring_id" property="recurringId" />
+        <result column="todo_id" property="todoId" />
+        <result column="member_id" property="memberId" />
+        <result column="repeat_type" property="repeatType" />
+        <result column="repeat_interval" property="repeatInterval" />
+        <result column="repeat_start" property="repeatStart" />
+        <result column="repeat_end" property="repeatEnd" />
+        <result column="created_at" property="createdAt" />
+    </resultMap>
+
+    <resultMap type="TodoMissedVO" id="todoMissedMap">
+        <result column="missed_id" property="missedId" />
+        <result column="todo_id" property="todoId" />
+        <result column="member_id" property="memberId" />
+        <result column="original_date" property="originalDate" />
+        <result column="missed_date" property="missedDate" />
+        <result column="reason" property="reason" />
+    </resultMap>
+    
+    <!-- Select Statements -->
+   <!-- selectMonthlyTodos 쿼리 수정 -->
+<select id="selectMonthlyTodos" parameterType="map" resultType="map">
+    SELECT 
+        todo_id,
+        title,
+        start_date,
+        end_date,
+        is_recurring,
+        'regular' as type
+    FROM t_todo
+    WHERE 
+        member_id = #{memberId}
+        AND (
+            (start_date BETWEEN TO_DATE(#{startDate}, 'YYYY-MM-DD') AND TO_DATE(#{endDate}, 'YYYY-MM-DD'))
+            OR 
+            (end_date BETWEEN TO_DATE(#{startDate}, 'YYYY-MM-DD') AND TO_DATE(#{endDate}, 'YYYY-MM-DD'))
+        )
+    
+    UNION ALL
+    
+    SELECT 
+        todo_id,
+        title,
+        start_date,
+        completed_at as end_date,
+        is_recurring,
+        'completed' as type
+    FROM t_todo_completed 
+    WHERE 
+        member_id = #{memberId}
+        AND completed_at BETWEEN TO_DATE(#{startDate}, 'YYYY-MM-DD') AND TO_DATE(#{endDate}, 'YYYY-MM-DD')
+    
+    UNION ALL
+    
+    SELECT 
+        todo_id,
+        '미완료: ' || todo_id as title,
+        original_date as start_date,
+        missed_date as end_date,
+        'N' as is_recurring,
+        'missed' as type
+    FROM t_todo_missed
+    WHERE 
+        member_id = #{memberId}
+        AND missed_date BETWEEN TO_DATE(#{startDate}, 'YYYY-MM-DD') AND TO_DATE(#{endDate}, 'YYYY-MM-DD')
+</select>
+
+<select id="selectAllByMemberId" parameterType="string" resultMap="todoMap">
+    SELECT
+        todo_id,
+        member_id,
+        title,
+        detail,
+        start_date,
+        end_date,
+        is_recurring,
+        created_at,
+        updated_at
+    FROM t_todo
+    WHERE member_id = #{memberId}
+    ORDER BY start_date DESC
+</select>
+
+
+<!-- selectTodoToday 쿼리를 더 단순하고 명확하게 수정 -->
+<select id="selectTodoToday" parameterType="string" resultType="TodoVO">
+    SELECT 
+        t.todo_id as todoId,
+        t.member_id as memberId,
+        t.title,
+        t.detail,
+        CASE WHEN t.is_recurring = 'Y' 
+             THEN t.start_date + (7 * FLOOR((TRUNC(SYSDATE) - t.start_date)/7))
+             ELSE t.start_date 
+        END as startDate,
+        t.end_date as endDate,
+        t.is_recurring as isRecurring,
+        t.created_at as createdAt
+    FROM t_todo t
+    WHERE 
+        t.member_id = #{memberId}
+        AND (
+            (t.is_recurring = 'N' AND TRUNC(t.start_date) = TRUNC(SYSDATE))
+            OR 
+            (t.is_recurring = 'Y' 
+             AND MOD(TRUNC(SYSDATE) - TRUNC(t.start_date), 7) = 0)
+        )
+    ORDER BY startDate
+</select>
+	
+	
+	<select id="selectChoiceDate" parameterType="map" resultMap="todoMap">
+    SELECT 
+        todo_id,
+        member_id,
+        title,
+        detail,
+        start_date,
+        end_date,
+        is_recurring,
+        created_at,
+        updated_at
+    FROM t_todo
+    WHERE 
+        member_id = #{memberId}
+        AND (
+            (start_date BETWEEN TO_DATE(#{startDate}, 'YYYY-MM-DD') AND TO_DATE(#{endDate}, 'YYYY-MM-DD'))
+            OR 
+            (end_date BETWEEN TO_DATE(#{startDate}, 'YYYY-MM-DD') AND TO_DATE(#{endDate}, 'YYYY-MM-DD'))
+        )
+</select>
+
+
+	
+
+    
+    <select id="selectDailyTodos" parameterType="map" resultMap="todoMap">
+        SELECT 
+            t.todo_id,
+            t.member_id,
+            t.title,
+            t.detail,
+            TO_CHAR(t.start_date, 'YYYY-MM-DD') as start_date,
+            TO_CHAR(t.end_date, 'YYYY-MM-DD') as end_date,
+            t.is_recurring,
+            r.repeat_interval,
+            t.created_at,
+            t.updated_at
+        FROM t_todo t
+        LEFT JOIN t_todo_recurring r ON t.todo_id = r.todo_id
+        WHERE t.member_id = #{memberId}
+          AND (
+              (t.is_recurring = 'N'
+               AND TO_DATE(#{date}, 'YYYY-MM-DD') BETWEEN t.start_date AND t.end_date)
+              OR
+              (t.is_recurring = 'Y'
+               AND r.repeat_interval > 0
+               AND TO_DATE(#{date}, 'YYYY-MM-DD') >= r.repeat_start
+               AND (r.repeat_end IS NULL OR TO_DATE(#{date}, 'YYYY-MM-DD') &lt;= r.repeat_end)
+               AND MOD(TO_DATE(#{date}, 'YYYY-MM-DD') - r.repeat_start, r.repeat_interval) = 0)
+          )
+        ORDER BY t.start_date
+    </select>
+
+    <!-- Insert Statements -->
+    <insert id="insertTodo" parameterType="TodoVO">
+        INSERT INTO t_todo (
+            todo_id,
+            member_id,
+            title,
+            detail,
+            start_date,
+            end_date,
+            is_recurring,
+            created_at,
+            updated_at
+        ) VALUES (
+            TODO_SEQ.NEXTVAL,
+            #{memberId},
+            #{title},
+            #{detail},
+            TO_DATE(#{startDate}, 'YYYY-MM-DD'),
+            TO_DATE(#{endDate}, 'YYYY-MM-DD'),
+            #{isRecurring},
+            SYSDATE,
+            SYSDATE
+        )
+        <selectKey keyProperty="todoId" resultType="int" order="AFTER">
+            SELECT TODO_SEQ.CURRVAL FROM DUAL
+        </selectKey>
+    </insert>
+    
+    <insert id="insertTodoRecurring" parameterType="map">
+        INSERT INTO t_todo_recurring (
+            recurring_id,
+            todo_id,
+            member_id,
+            repeat_type,
+            repeat_interval,
+            repeat_start,
+            repeat_end,
+            created_at
+        ) VALUES (
+            RECURRING_SEQ.NEXTVAL,
+            #{todoId},
+            #{memberId},
+            #{repeatType},
+            #{repeatInterval},
+            TO_DATE(#{repeatStart}, 'YYYY-MM-DD'),
+            <choose>
+                <when test="repeatEnd != null">
+                    TO_DATE(#{repeatEnd}, 'YYYY-MM-DD'),
+                </when>
+                <otherwise>
+                    NULL,
+                </otherwise>
+            </choose>
+            SYSTIMESTAMP
+        )
+    </insert>
+
+    <insert id="insertTodoCompleted" parameterType="map">
+    INSERT INTO t_todo_completed (
+        todo_id,
+        member_id,
+        title,
+        detail,
+        start_date,
+        end_date,
+        completed_at,
+        is_recurring,
+        repeat_interval
+    )
+    SELECT 
+        t.todo_id,
+        t.member_id,
+        t.title,
+        t.detail,
+        t.start_date,
+        t.end_date,
+        SYSDATE,
+        t.is_recurring,
+        r.repeat_interval
+    FROM t_todo t
+    LEFT JOIN t_todo_recurring r ON t.todo_id = r.todo_id
+    WHERE t.todo_id = #{todoId}
+      AND t.member_id = #{memberId}
+</insert>
+
+
+<insert id="insertMissedTodo" parameterType="string">
+    INSERT INTO T_TODO_MISSED (
+        MISSED_ID,
+        TODO_ID,
+        MEMBER_ID,
+        ORIGINAL_DATE,
+        MISSED_DATE
+    )
+    SELECT 
+        MISSED_SEQ.NEXTVAL,
+        t.todo_id,
+        t.member_id,
+        t.end_date,
+        SYSDATE
+    FROM T_TODO t
+    LEFT JOIN T_TODO_COMPLETED tc ON t.todo_id = tc.todo_id
+    LEFT JOIN T_TODO_MISSED tm ON t.todo_id = tm.todo_id
+    WHERE t.end_date &lt; TRUNC(SYSDATE)
+    AND tc.todo_id IS NULL
+    AND tm.todo_id IS NULL
+</insert>
+
+
+<!-- 특정 멤버의 미완료 일정만 체크하는 쿼리 -->
+<insert id="insertMissedTodoByMember" parameterType="string">
+    INSERT INTO T_TODO_MISSED (
+        MISSED_ID,
+        TODO_ID,
+        MEMBER_ID,
+        ORIGINAL_DATE,
+        MISSED_DATE
+    )
+    SELECT 
+        MISSED_SEQ.NEXTVAL,
+        t.todo_id,
+        t.member_id,
+        t.end_date,
+        SYSDATE
+    FROM T_TODO t
+    LEFT JOIN T_TODO_COMPLETED tc ON t.todo_id = tc.todo_id
+    LEFT JOIN T_TODO_MISSED tm ON t.todo_id = tm.todo_id
+    WHERE t.end_date &lt; TRUNC(SYSDATE)
+    AND t.member_id = #{memberId, jdbcType=VARCHAR}
+    AND tc.todo_id IS NULL
+    AND tm.todo_id IS NULL
+</insert>
+
+
+
+	<!-- 미완료 일정 조회를 위한 새로운 쿼리 추가 -->
+<select id="selectMissedTodos" parameterType="string" resultMap="todoMissedMap">
+    SELECT m.*, t.title, t.detail
+    FROM t_todo_missed m
+    JOIN t_todo t ON m.todo_id = t.todo_id
+    WHERE m.member_id = #{memberId}
+    ORDER BY m.missed_date DESC
+</select>
+
+<!-- 오늘의 미완료 일정 개수를 확인하는 쿼리 추가 -->
+<select id="countTodayMissedTodos" parameterType="string" resultType="int">
+    SELECT COUNT(*)
+    FROM t_todo t
+    WHERE t.member_id = #{memberId}
+    AND t.end_date = TRUNC(SYSDATE-1)
+    AND NOT EXISTS (
+        SELECT 1 
+        FROM t_todo_completed tc 
+        WHERE tc.todo_id = t.todo_id
+    )
+    AND NOT EXISTS (
+        SELECT 1 
+        FROM t_todo_missed tm
+        WHERE tm.todo_id = t.todo_id
+        AND tm.original_date = t.end_date
+    )
+</select>
+
+
+<select id="selectAllByCompleteTodo" parameterType="string" resultMap="todoCompletedMap">
+    SELECT
+        todo_id,
+        member_id,
+        title,
+        detail,
+        start_date,
+        end_date,
+        completed_at
+    FROM t_todo_completed
+    WHERE member_id = #{memberId}
+    ORDER BY completed_at DESC
+</select>
+
+
+<!-- 완료된 일정 복원을 위한 쿼리 -->
+<insert id="insertFromCompleted" parameterType="map">
+    INSERT INTO t_todo (
+        todo_id, 
+        member_id, 
+        title, 
+        detail, 
+        start_date, 
+        end_date,
+        is_recurring,
+        created_at,
+        updated_at
+    )
+    SELECT 
+        todo_id, 
+        member_id, 
+        title, 
+        detail, 
+        start_date, 
+        end_date,
+        is_recurring,
+        SYSDATE,
+        SYSDATE
+    FROM t_todo_completed
+    WHERE todo_id = #{todoId}
+    AND member_id = #{memberId}
+</insert>
+
+
+<select id="selectRecurringTodos" parameterType="int" resultMap="todoRecurringMap">
+    SELECT *
+    FROM t_todo_recurring
+    WHERE todo_id = #{todoId}
+</select>
+
+
+    <!-- Delete Statements -->
+    <delete id="deleteTodo" parameterType="map">
+        DELETE FROM t_todo 
+        WHERE todo_id = #{todoId} 
+          AND member_id = #{memberId}
+    </delete>
+    
+    <delete id="deleteTodoCompleted" parameterType="map">
+        DELETE FROM t_todo_completed 
+        WHERE todo_id = #{todoId} 
+          AND member_id = #{memberId}
+    </delete>
+    
+    <!-- Update Statements -->
+    <update id="updateTodo" parameterType="TodoVO">
+        UPDATE t_todo
+        SET title = #{title},
+            detail = #{detail},
+            start_date = TO_DATE(#{startDate}, 'YYYY-MM-DD'),
+            end_date = TO_DATE(#{endDate}, 'YYYY-MM-DD'),
+            is_recurring = #{isRecurring},
+            updated_at = SYSDATE
+        WHERE todo_id = #{todoId}
+          AND member_id = #{memberId}
+    </update>
+    
+    <delete id="deleteCompletedTodo" parameterType="map">
+    DELETE FROM t_todo_completed
+    WHERE todo_id = #{todoId}
+    AND member_id = #{memberId}
+</delete>
+
+
+
+
+    
+    
+</mapper>

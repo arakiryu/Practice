@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE configuration
+  PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+
+	<properties resource="mybatis/db.properties" />
+
+	<typeAliases>
+    <typeAlias type="vo.TodoVO" alias="TodoVO"/>
+    <typeAlias type="vo.MemberVO" alias="MemberVO"/>
+    <typeAlias type="vo.BoardVO" alias="BoardVO"/>
+    <typeAlias type="vo.CommentVO" alias="CommentVO"/>
+    <typeAlias type="vo.TodoCompletedVO" alias="TodoCompletedVO"/>
+    <typeAlias type="vo.TodoRecurringVO" alias="TodoRecurringVO"/>
+    <typeAlias type="vo.TodoMissedVO" alias="TodoMissedVO"/>
+</typeAliases>
+
+	<environments default="development">
+		<environment id="development">
+			<transactionManager type="JDBC" />
+			<dataSource type="POOLED">
+				<property name="driver" value="${jdbc.driver}" />
+				<property name="url" value="${jdbc.url}" />
+				<property name="username" value="${jdbc.user}" />
+				<property name="password" value="${jdbc.password}" />
+			</dataSource>
+		</environment>
+	</environments>
+	
+
+	<mappers>
+		<mapper resource="common/todoListMapper.xml"/> <!-- ?이건 뭐지 -->
+		<mapper resource="common/memberMapper.xml"/>
+		<mapper resource="common/boardMapper.xml"/>
+		<mapper resource="common/commentMapper.xml"/>
+	</mappers>
+</configuration>
